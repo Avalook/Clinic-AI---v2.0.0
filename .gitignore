@@ -96,3 +96,4 @@ scripts/data_migration/output/
 
 # DB reset backups (may contain patient PII — never commit)
 scripts/maintenance/backups/
+.vercel
