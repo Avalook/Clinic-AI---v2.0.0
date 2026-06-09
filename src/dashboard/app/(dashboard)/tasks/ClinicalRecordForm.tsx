@@ -201,6 +201,10 @@ export default function ClinicalRecordForm({
   const [labBusy, setLabBusy] = useState(false);
   const [saving, setSaving] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  // Brief tiền khám (lõi AI) — đọc dữ liệu BN, tóm tắt cho bác sĩ.
+  const [briefMd, setBriefMd] = useState<string | null>(null);
+  const [briefBusy, setBriefBusy] = useState(false);
+  const [briefErr, setBriefErr] = useState<string | null>(null);
 
   useEffect(() => {
     if (!p?.clinic_patient_id) return;
@@ -418,6 +422,27 @@ export default function ClinicalRecordForm({
   const labs = data?.labs ?? [];
   // khoá khi: LỄ TÂN chỉ-đọc / hồ sơ đã chốt / đang lưu / (bác sĩ) BN chưa check-in
   // / đang tải prefill (chưa tải xong mà sửa+lưu sẽ ghi đè rỗng — xem guard save()).
+  // Gọi lõi AI tạo brief tiền khám cho BN này (chỉ đọc, không đụng hồ sơ).
+  async function genBrief() {
+    if (!p?.clinic_patient_id) return;
+    setBriefBusy(true);
+    setBriefErr(null);
+    try {
+      const res = await fetch("/api/ai-brief", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ clinic_patient_id: p.clinic_patient_id }),
+      });
+      const d = (await res.json()) as { markdown?: string; error?: string };
+      if (!res.ok) setBriefErr(d.error ?? "Lõi AI không tạo được brief.");
+      else setBriefMd(d.markdown ?? "");
+    } catch {
+      setBriefErr("Không gọi được lõi AI.");
+    } finally {
+      setBriefBusy(false);
+    }
+  }
+
   const ro = readOnly || locked || saving || arrivalPending || loading;
   const roRest = ro || vitalsOnly; // đón-khám (vitalsOnly): mọi mục khác chỉ xem
 
@@ -466,6 +491,34 @@ export default function ClinicalRecordForm({
           <p className="rounded-md bg-[#fef9c3] px-3 py-1.5 text-xs text-[#a16207]">
             🕓 Chờ lễ tân xác nhận bệnh nhân đã đến (check-in) — chưa khám được.
           </p>
+        )}
+
+        {/* Brief tiền khám bằng AI (lõi AI) — bác sĩ bấm để AI tóm tắt hồ sơ BN. */}
+        {!readOnly && !vitalsOnly && p?.clinic_patient_id && (
+          <div className="rounded-lg border border-[#e9d5ff] bg-[#faf5ff] px-3 py-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold text-[#7c3aed]">
+                ✨ Brief tiền khám (AI)
+              </span>
+              <button
+                onClick={genBrief}
+                disabled={briefBusy}
+                className="inline-flex min-h-8 items-center gap-1 rounded-md bg-[#7c3aed] px-2.5 text-xs font-semibold text-white hover:bg-[#6d28d9] disabled:opacity-50"
+              >
+                {briefBusy ? "Đang tạo…" : briefMd ? "Tạo lại" : "Tạo brief AI"}
+              </button>
+            </div>
+            {briefErr && (
+              <p className="mt-2 rounded bg-[#fee2e2] px-2 py-1 text-xs text-[#dc2626]">
+                {briefErr}
+              </p>
+            )}
+            {briefMd && (
+              <pre className="mt-2 max-h-72 overflow-auto whitespace-pre-wrap rounded bg-white px-3 py-2 font-sans text-xs leading-relaxed text-[#171717]">
+                {briefMd}
+              </pre>
+            )}
+          </div>
         )}
 
         <Section
