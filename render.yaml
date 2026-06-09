@@ -29,3 +29,42 @@ services:
         sync: false              # secret — runtime only
       - key: CLINIC_SHARED_EMAIL
         sync: false
+
+  # ---- FastAPI AI backend (fallback / alternative to Vercel) ----------------
+  # The backend is a long-running server: lifespan opens an asyncpg pool + a
+  # LangGraph Postgres checkpointer + the Anthropic client (see main.py:37). That
+  # design fits a container far better than serverless — Dockerfile.api already
+  # runs `uvicorn clinicai.main:app`, so Render just builds + runs it as-is.
+  #
+  # dockerContext is the repo ROOT (.) because Dockerfile.api copies pyproject.toml,
+  # poetry.lock, README.md and src/ from there. healthCheckPath /health is the one
+  # route the BACKEND_API_KEY gate leaves public (see api/auth.py).
+  - type: web
+    name: clinic-ai-api
+    runtime: docker
+    plan: free                   # free spins down when idle (~50s cold start); bump for prod
+    region: singapore
+    branch: main                 # NOTE: dashboard above tracks feat/t-transform-01 — code now lives on main
+    dockerfilePath: Dockerfile.api
+    dockerContext: .
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: DATABASE_URL
+        sync: false              # Supabase pooler URL (postgresql+asyncpg://...). REQUIRED — boot fails without
+      - key: ANTHROPIC_API_KEY
+        sync: false              # REQUIRED — AnthropicClient built at startup
+      - key: BACKEND_API_KEY
+        sync: false              # gates every route except /health; prod MUST set it (unset = allow-all)
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: RABBITMQ_URL
+        sync: false              # only if event publishing (aio-pika) is used
+      - key: DEFAULT_LOCATION_ID
+        sync: false              # optional — default clinic location for scheduling
+      - key: APP_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: INFO

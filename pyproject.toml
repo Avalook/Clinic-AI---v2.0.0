@@ -52,3 +52,14 @@ dev = [
 python_version = "3.12"
 strict = true
 ignore_missing_imports = true
+
+# Vercel FastAPI entrypoint. Vercel's detector found 8 files with an `app`
+# variable (main.py + 7 test files) and couldn't pick one — this names the real
+# one. Format is module:variable, suggested verbatim by Vercel's build error.
+#
+# FALLBACK: if the deploy then fails with `ModuleNotFoundError: No module named
+# 'clinicai'`, it means Vercel installed the package top-level (like Dockerfile.api
+# does) — change this to `clinicai.main:app`. The codebase imports `clinicai.*`,
+# so only one of the two will resolve depending on how Vercel sets sys.path.
+[tool.vercel]
+entrypoint = "src.clinicai.main:app"
